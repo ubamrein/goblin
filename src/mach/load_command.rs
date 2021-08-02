@@ -1029,6 +1029,42 @@ impl TryFrom<u32> for Platform {
         })
     }
 }
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pread, Pwrite, IOread, IOwrite, SizeWith)]
+pub struct BuildVersionCommand {
+    /// LC_BUILD_VERSION.
+    pub cmd: u32,
+    pub cmdsize: u32,
+    pub platform: u32,
+    /// X.Y.Z is encoded in nibbles xxxx.yy.zz
+    pub version: u32,
+    /// X.Y.Z is encoded in nibbles xxxx.yy.zz
+    pub sdk: u32,
+    pub ntools: u32,
+}
+
+impl BuildVersionCommand {
+    pub fn new(platform: Platform) -> Self {
+        BuildVersionCommand {
+            cmd: platform as u32,
+            cmdsize: SIZEOF_BUILD_VERSION_COMMAND as u32,
+            version: 0,
+            sdk: 0,
+            platform: 0,
+            ntools: 0,
+        }
+    }
+
+    pub fn platform(&self) -> Platform {
+        // A panic here indicates an incomplete API change above: VersionMinCommand
+        // can only be constructed from one of the LC_VERSION_* commands or directly
+        // from a Platform, so an error indicates that a new one hasn't been correctly
+        // added to the Platform enum.
+        Platform::try_from(self.cmd).expect("impossible platform (implementation error)")
+    }
+}
+
+pub const SIZEOF_BUILD_VERSION_COMMAND: usize = 24;
 
 /// The version_min_command contains the min OS version on which this
 /// binary was built to run.
@@ -1374,6 +1410,7 @@ pub enum CommandVariant {
     LoadUpwardDylib(DylibCommand),
     VersionMinMacosx(VersionMinCommand),
     VersionMinIphoneos(VersionMinCommand),
+    BuildVersion(BuildVersionCommand),
     FunctionStarts(LinkeditDataCommand),
     DyldEnvironment(DylinkerCommand),
     Main(EntryPointCommand),
@@ -1560,6 +1597,10 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for CommandVariant {
                 let comm = bytes.pread_with::<VersionMinCommand>(0, le)?;
                 Ok((VersionMinIphoneos(comm), size))
             }
+            LC_BUILD_VERSION => {
+                let comm = bytes.pread_with::<BuildVersionCommand>(0, le)?;
+                Ok((BuildVersion(comm), size))
+            }
             LC_FUNCTION_STARTS => {
                 let comm = bytes.pread_with::<LinkeditDataCommand>(0, le)?;
                 Ok((FunctionStarts(comm), size))
@@ -1658,6 +1699,7 @@ impl CommandVariant {
             LoadUpwardDylib(comm) => comm.cmdsize,
             VersionMinMacosx(comm) => comm.cmdsize,
             VersionMinIphoneos(comm) => comm.cmdsize,
+            BuildVersion(comm) => comm.cmdsize,
             FunctionStarts(comm) => comm.cmdsize,
             DyldEnvironment(comm) => comm.cmdsize,
             Main(comm) => comm.cmdsize,
@@ -1716,6 +1758,7 @@ impl CommandVariant {
             LoadUpwardDylib(comm) => comm.cmd,
             VersionMinMacosx(comm) => comm.cmd,
             VersionMinIphoneos(comm) => comm.cmd,
+            BuildVersion(comm) => comm.cmd,
             FunctionStarts(comm) => comm.cmd,
             DyldEnvironment(comm) => comm.cmd,
             Main(comm) => comm.cmd,
