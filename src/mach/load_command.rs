@@ -1044,23 +1044,15 @@ pub struct BuildVersionCommand {
 }
 
 impl BuildVersionCommand {
-    pub fn new(platform: Platform) -> Self {
+    pub fn new(cmd: u32) -> Self {
         BuildVersionCommand {
-            cmd: platform as u32,
+            cmd,
             cmdsize: SIZEOF_BUILD_VERSION_COMMAND as u32,
             version: 0,
             sdk: 0,
             platform: 0,
             ntools: 0,
         }
-    }
-
-    pub fn platform(&self) -> Platform {
-        // A panic here indicates an incomplete API change above: VersionMinCommand
-        // can only be constructed from one of the LC_VERSION_* commands or directly
-        // from a Platform, so an error indicates that a new one hasn't been correctly
-        // added to the Platform enum.
-        Platform::try_from(self.cmd).expect("impossible platform (implementation error)")
     }
 }
 
@@ -1651,7 +1643,7 @@ impl<'a> ctx::TryFromCtx<'a, Endian> for CommandVariant {
             }
             // TODO: LC_NOTE (NoteCommand) and LC_BUILD_VERSION (BuildVersionCommand)
             // are unimplemented.
-            LC_NOTE | LC_BUILD_VERSION | _ => Ok((Unimplemented(lc), size)),
+            LC_NOTE | _ => Ok((Unimplemented(lc), size)),
         }
     }
 }
